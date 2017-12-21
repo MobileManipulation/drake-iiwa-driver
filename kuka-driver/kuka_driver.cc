@@ -9,6 +9,7 @@
 #include <limits>
 #include <stdexcept>
 #include <vector>
+#include <sys/time.h>
 
 #include <gflags/gflags.h>
 #include <lcm/lcm-cpp.hpp>
@@ -100,12 +101,15 @@ class KukaLCMClient  {
   }
 
   void UpdateRobotState(int robot_id, const KUKA::FRI::LBRState& state) {
+    struct timeval  tv;
+    gettimeofday(&tv, NULL);
+
     const int joint_offset = robot_id * kNumJoints;
     assert(joint_offset + kNumJoints <= num_joints_);
 
     // Current time stamp for this robot.
-    const int64_t utime_now =
-        state.getTimestampSec() * 1e6 + state.getTimestampNanoSec() / 1e3;
+    int64_t utime_now =
+        state.getTimestampSec() * 1e6 + state.getTimestampNanoSec() / 1e3;//  +  18000000000;
     // Get delta time for this robot.
     double robot_dt = 0.;
     if (utime_last_.at(robot_id) != -1) {
@@ -116,6 +120,12 @@ class KukaLCMClient  {
                   << ", kTimeStep " << kTimeStep << "\n";
       }
     }
+
+    int64_t sys_clock_now = tv.tv_sec * 1e6 + tv.tv_usec;
+    double err = (double) (sys_clock_now - utime_now)/1e6;
+
+    std::cout << "FRI latency: " << err << " seconds \tFRI time: " << utime_now << "\tSys time: " << sys_clock_now << "\n";
+    // utime_now = sys_clock_now; //$ THIS IS FOR TESTING LCM-ROS LATENCY WITHOUT FRI LATENCY
     utime_last_.at(robot_id) = utime_now;
 
     // The choice of robot id 0 for the timestamp is arbitrary.
