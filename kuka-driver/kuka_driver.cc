@@ -10,6 +10,7 @@
 #include <stdexcept>
 #include <vector>
 #include <sys/time.h>
+#include <fstream>
 
 #include <gflags/gflags.h>
 #include <lcm/lcm-cpp.hpp>
@@ -32,6 +33,7 @@ const int kNumJoints = 7;
 const int kDefaultPort = 30200;
 const char* kLcmStatusChannel = "IIWA_STATUS";
 const char* kLcmCommandChannel = "IIWA_COMMAND";
+const bool kLocalTimestamp = true;
 const double kTimeStep = 0.005;
 const double kJointLimitSafetyMarginDegree = 1;
 const double kJointTorqueSafetyMarginNm = 60;
@@ -98,6 +100,13 @@ class KukaLCMClient  {
         &KukaLCMClient::HandleCommandMessage, this);
     // Only pay attention to the latest command.
     sub->setQueueCapacity(1);
+
+    myfile.open ("/home/momap/drake-iiwa-driver/build/var_fri.csv");
+  }
+
+  ~KukaLCMClient() 
+  {
+    myfile.close();
   }
 
   void UpdateRobotState(int robot_id, const KUKA::FRI::LBRState& state) {
@@ -108,24 +117,31 @@ class KukaLCMClient  {
     assert(joint_offset + kNumJoints <= num_joints_);
 
     // Current time stamp for this robot.
-    int64_t utime_now =
-        state.getTimestampSec() * 1e6 + state.getTimestampNanoSec() / 1e3;//  +  18000000000;
+    int64_t utime_now;
+
+    if (kLocalTimestamp) {
+      utime_now = tv.tv_sec * 1e6 + tv.tv_usec;
+    }
+    else {
+      utime_now  = state.getTimestampSec() * 1e6 + state.getTimestampNanoSec() / 1e3;
+    }
+
     // Get delta time for this robot.
     double robot_dt = 0.;
     if (utime_last_.at(robot_id) != -1) {
-      robot_dt = (utime_now - utime_last_.at(robot_id)) / 1e6;
+      robot_dt = (utime_now - utime_last_.at(robot_id)) / 1e6; // [s]
       // Check timing
-      if (std::abs(robot_dt - kTimeStep) > 1e-3) {
+      // std::cout << "dt " << robot_dt << "\n";
+      // int64_t kuka_timestamp = state.getTimestampSec() * 1e6 + state.getTimestampNanoSec() / 1e3;
+      // myfile << robot_dt << "," << utime_now << "," << kuka_timestamp << "\n";
+
+      if (std::abs(robot_dt - kTimeStep) > 1e-3) { 
+        // if difference between measured timestep and nominal timestep is greater than 1 millisecond, print warning
         std::cout << "Warning: dt " << robot_dt
                   << ", kTimeStep " << kTimeStep << "\n";
       }
     }
 
-    int64_t sys_clock_now = tv.tv_sec * 1e6 + tv.tv_usec;
-    double err = (double) (sys_clock_now - utime_now)/1e6;
-
-    std::cout << "FRI latency: " << err << " seconds \tFRI time: " << utime_now << "\tSys time: " << sys_clock_now << "\n";
-    // utime_now = sys_clock_now; //$ THIS IS FOR TESTING LCM-ROS LATENCY WITHOUT FRI LATENCY
     utime_last_.at(robot_id) = utime_now;
 
     // The choice of robot id 0 for the timestamp is arbitrary.
@@ -273,6 +289,8 @@ class KukaLCMClient  {
   // Filters
   std::vector<DiscreteTimeLowPassFilter<double>> vel_filters_;
   std::vector<int64_t> utime_last_;
+
+  std::ofstream myfile;
 };
 
 class KukaFRIClient : public KUKA::FRI::LBRClient {
