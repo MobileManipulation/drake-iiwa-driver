@@ -31,7 +31,7 @@ namespace {
 
 const int kNumJoints = 7;
 const int kDefaultPort = 30200;
-const char* kLCMURL = "udpm://239.255.76.67:7667?ttl=1";
+const char* kLCMURL = "udpm://239.255.76.67:7667?ttl=2";
 const char* kLcmStatusChannel = "IIWA_STATUS";
 const char* kLcmCommandChannel = "IIWA_COMMAND";
 const bool kLocalTimestamp = true;
@@ -102,7 +102,9 @@ class KukaLCMClient  {
     // Only pay attention to the latest command.
     sub->setQueueCapacity(1);
 
-    myfile.open ("/home/momap/drake-iiwa-driver/build/var_fri.csv");
+    myfile.open ("/home/momap/drake-iiwa-driver/build/var_fri_steps_compared.csv");
+    myfile << "utime_fri_received" << "," << "utime_fri_claims" << "," << "copy_fri_us" << "," << "pre_lcm_us" << "," << "lcm_us" << "," << "total_us" << "\n";
+
   }
 
   ~KukaLCMClient() 
@@ -110,9 +112,14 @@ class KukaLCMClient  {
     myfile.close();
   }
 
+  int64_t GetTimeDiff(struct timeval tv1, struct timeval tv2) {
+    int64_t t1 = tv1.tv_sec * 1e6 + tv1.tv_usec;
+    int64_t t2 = tv2.tv_sec * 1e6 + tv2.tv_usec;
+    return t2 - t1;
+  }
+
   void UpdateRobotState(int robot_id, const KUKA::FRI::LBRState& state) {
-    struct timeval  tv;
-    gettimeofday(&tv, NULL);
+    gettimeofday(&tv_fri_in, NULL);
 
     const int joint_offset = robot_id * kNumJoints;
     assert(joint_offset + kNumJoints <= num_joints_);
@@ -121,11 +128,12 @@ class KukaLCMClient  {
     int64_t utime_now;
 
     if (kLocalTimestamp) {
-      utime_now = tv.tv_sec * 1e6 + tv.tv_usec;
+      utime_fri_received_ = utime_now = tv_fri_in.tv_sec * 1e6 + tv_fri_in.tv_usec;
     }
     else {
       utime_now  = state.getTimestampSec() * 1e6 + state.getTimestampNanoSec() / 1e3;
     }
+    utime_fri_claims_ = state.getTimestampSec() * 1e6 + state.getTimestampNanoSec() / 1e3;
 
     // Get delta time for this robot.
     double robot_dt = 0.;
@@ -181,6 +189,13 @@ class KukaLCMClient  {
                 state.getCommandedTorque(), kNumJoints * sizeof(double));
     std::memcpy(lcm_status_.joint_torque_external.data() + joint_offset,
                 state.getExternalTorque(), kNumJoints * sizeof(double));
+
+    gettimeofday(&tv_fri_copied, NULL);
+
+    // int64_t utime_lcm_converted = tv.tv_sec * 1e6 + tv.tv_usec;
+    // double convert_fri_to_lcm_dt = (utime_lcm_converted - utime_now) / 1e3;
+    // std::cout <<  convert_fri_to_lcm_dt << "\tconvert_fri_to_lcm_dt ms \n";
+
   }
 
   /// @returns true if robot @p robot_id is in a safe state. Currently only
@@ -270,7 +285,20 @@ class KukaLCMClient  {
   }
 
   void PublishStateUpdate() {
+    gettimeofday(&tv_pre_lcm_publish, NULL);
+
     lcm_.publish(FLAGS_lcm_status_channel, &lcm_status_);
+
+    gettimeofday(&tv_post_lcm_publish, NULL);
+
+    int64_t copy_fri_us, pre_lcm_us, lcm_us, total_us;
+    copy_fri_us = GetTimeDiff(tv_fri_in, tv_fri_copied);
+    pre_lcm_us = GetTimeDiff(tv_fri_copied, tv_pre_lcm_publish);
+    lcm_us = GetTimeDiff(tv_pre_lcm_publish, tv_post_lcm_publish);
+    total_us = GetTimeDiff(tv_fri_in, tv_post_lcm_publish);
+
+    myfile << utime_fri_received_ << "," << utime_fri_claims_ << "," << copy_fri_us << "," << pre_lcm_us << "," << lcm_us << "," << total_us << "\n";
+
     // Also poll for new messages.
     lcm_.handleTimeout(0);
   }
@@ -286,12 +314,17 @@ class KukaLCMClient  {
   lcm::LCM lcm_;
   lcmt_iiwa_status lcm_status_{};
   lcmt_iiwa_command lcm_command_{};
-
+  int64_t utime_fri_received_, utime_fri_claims_;
   // Filters
   std::vector<DiscreteTimeLowPassFilter<double>> vel_filters_;
   std::vector<int64_t> utime_last_;
 
   std::ofstream myfile;
+  struct timeval tv_fri_in;
+  struct timeval tv_fri_copied;
+  struct timeval tv_pre_lcm_publish;
+  struct timeval tv_post_lcm_publish;
+
 };
 
 class KukaFRIClient : public KUKA::FRI::LBRClient {
