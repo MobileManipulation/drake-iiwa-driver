@@ -1,7 +1,7 @@
 # Find LCM
 find_package(drake REQUIRED)
 find_package(lcm REQUIRED)
-find_package(gflags REQUIRED)
+#find_package(gflags REQUIRED)
 
 # add custom commands to copy the kuka-fri source code over to the
 # build dir and compile it
