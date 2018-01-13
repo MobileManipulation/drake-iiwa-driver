@@ -1,6 +1,10 @@
 # Find LCM
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules")
 
+list(APPEND CMAKE_PREFIX_PATH $ENV{DRAKE_INSTALL_DIR})
+list(APPEND CMAKE_PREFIX_PATH $ENV{DRAKE_INSTALL_DIR}/lib/cmake)
+list(APPEND CMAKE_PREFIX_PATH $ENV{DRAKE_INSTALL_DIR}/lib/cmake/drake)
+
 find_package(drake REQUIRED)
 find_package(lcm REQUIRED)
 find_package(GFlags MODULE REQUIRED COMPONENTS shared)
