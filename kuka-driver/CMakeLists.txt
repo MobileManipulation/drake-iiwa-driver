@@ -1,27 +1,15 @@
 # Find LCM
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules")
 
-list(APPEND CMAKE_PREFIX_PATH $ENV{DRAKE_INSTALL_DIR})
-list(APPEND CMAKE_PREFIX_PATH $ENV{DRAKE_INSTALL_DIR}/lib/cmake)
-list(APPEND CMAKE_PREFIX_PATH $ENV{DRAKE_INSTALL_DIR}/lib/cmake/drake)
+list(APPEND CMAKE_PREFIX_PATH $ENV{DRAKE_BUILD_DIR})
+list(APPEND CMAKE_PREFIX_PATH $ENV{DRAKE_BUILD_DIR}/lib/cmake)
+list(APPEND CMAKE_PREFIX_PATH $ENV{DRAKE_BUILD_DIR}/lib/cmake/drake)
 
 find_package(drake REQUIRED)
 find_package(lcm REQUIRED)
 find_package(GFlags MODULE REQUIRED COMPONENTS shared)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}")
-
-set(roscpp_DIR "/opt/ros/kinetic/share/roscpp/cmake")
-set(message_generation_DIR "/opt/ros/kinetic/share/message_generation/cmake")
-set(sensor_msgs_DIR "/opt/ros/kinetic/share/sensor_msgs/cmake")
-
-# Find ROS
-find_package(catkin REQUIRED COMPONENTS
-  roscpp
-  std_msgs
-  sensor_msgs
-  message_generation
-)
 
 # add custom commands to copy the kuka-fri source code over to the
 # build dir and compile it
