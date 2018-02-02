@@ -9,6 +9,7 @@
 #include <limits>
 #include <stdexcept>
 #include <vector>
+#include <sys/time.h>
 
 #include <gflags/gflags.h>
 #include <lcm/lcm-cpp.hpp>
@@ -32,6 +33,7 @@ const int kDefaultPort = 30200;
 const char* kLcmStatusChannel = "IIWA_STATUS";
 const char* kLcmCommandChannel = "IIWA_COMMAND";
 const double kTimeStep = 0.005;
+const bool kLocalTimestamp = true;
 const double kJointLimitSafetyMarginDegree = 1;
 const double kJointTorqueSafetyMarginNm = 60;
 const double kJointTorqueSafetyMarginScale[kNumJoints] = {1, 1, 1, 0.5,
@@ -100,12 +102,22 @@ class KukaLCMClient  {
   }
 
   void UpdateRobotState(int robot_id, const KUKA::FRI::LBRState& state) {
+    struct timeval  tv;
+    gettimeofday(&tv, NULL);
+
     const int joint_offset = robot_id * kNumJoints;
     assert(joint_offset + kNumJoints <= num_joints_);
 
     // Current time stamp for this robot.
-    const int64_t utime_now =
-        state.getTimestampSec() * 1e6 + state.getTimestampNanoSec() / 1e3;
+    int64_t utime_now;
+
+    if (kLocalTimestamp) {
+      utime_now = tv.tv_sec * 1e6 + tv.tv_usec;
+    }
+    else {
+      utime_now  = state.getTimestampSec() * 1e6 + state.getTimestampNanoSec() / 1e3;
+    }
+
     // Get delta time for this robot.
     double robot_dt = 0.;
     if (utime_last_.at(robot_id) != -1) {
