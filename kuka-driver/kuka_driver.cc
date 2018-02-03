@@ -30,6 +30,7 @@ namespace {
 
 const int kNumJoints = 7;
 const int kDefaultPort = 30200;
+const char* kLCMURL = "udpm://239.255.76.67:7667?ttl=2";
 const char* kLcmStatusChannel = "IIWA_STATUS";
 const char* kLcmCommandChannel = "IIWA_COMMAND";
 const double kTimeStep = 0.005;
@@ -71,7 +72,7 @@ namespace kuka_driver {
 class KukaLCMClient  {
  public:
   explicit KukaLCMClient(int num_robots)
-      : num_joints_(num_robots * kNumJoints) {
+      : num_joints_(num_robots * kNumJoints), lcm_(kLCMURL) {
 
     // Use -1 as a sentinal to indicate that no status has been
     // sent (or received from the robot).
